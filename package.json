@@ -1,0 +1,15 @@
+{
+  "name": "cloudflare-hexo-comments",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A minimal comments system for Hexo / Redefine, powered by Cloudflare Workers and D1.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute hexo-comments --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute hexo-comments --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
