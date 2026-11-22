@@ -52,7 +52,7 @@
       if (!response.ok) throw new Error(data.error || "提交失败");
       form.reset(); status.textContent = "发布成功！"; await load();
     } catch (error) { status.dataset.state = "error"; status.textContent = error.message; }
-    finally { button.disabled = false; buttonLabel.textContent = "发布评论"; }
+    finally { button.disabled = false; buttonLabel.textContent = "评论"; }
   });
   load();
 })();
