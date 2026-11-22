@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL,
   nickname TEXT NOT NULL,
+  website TEXT NOT NULL DEFAULT '',
   content TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );

@@ -79,6 +79,17 @@ function cookie(value, maxAge) {
 function cleanText(value, maxLength) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
+function cleanWebsite(value) {
+  const website = cleanText(value, 200);
+  if (!website) return "";
+  try {
+    const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(website) ? website : `https://${website}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 
 async function hashIp(request, env) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -94,7 +105,7 @@ async function handle(request, env) {
     const path = cleanText(url.searchParams.get("path"), 500);
     if (!path) return json({ error: "缺少页面路径" }, 400);
     const { results } = await env.DB.prepare(
-      "SELECT id, path, nickname, content, created_at FROM comments WHERE path = ? ORDER BY created_at ASC LIMIT 500",
+      "SELECT id, path, nickname, website, content, created_at FROM comments WHERE path = ? ORDER BY created_at ASC LIMIT 500",
     ).bind(path).all();
     return json({ comments: results });
   }
@@ -102,12 +113,14 @@ async function handle(request, env) {
   if (url.pathname === "/api/comments" && request.method === "POST") {
     let body;
     try { body = await request.json(); } catch { return json({ error: "请求格式无效" }, 400); }
-    if (body.website) return json({ ok: true }); // Honeypot field for basic bot filtering.
+    if (body.website_honeypot) return json({ ok: true });
     const path = cleanText(body.path, 500);
     const nickname = cleanText(body.nickname, 40) || "匿名";
     const content = cleanText(body.content, 3000);
+    const website = cleanWebsite(body.website);
     if (!path || !content) return json({ error: "页面路径和评论内容不能为空" }, 400);
     if (content.length < 2) return json({ error: "评论至少需要 2 个字符" }, 400);
+    if (website === null) return json({ error: "网址格式无效，请填写有效的网址" }, 400);
     if (!env.RATE_LIMIT_SALT) return json({ error: "服务尚未完成配置" }, 503);
 
     const ipHash = await hashIp(request, env);
@@ -121,9 +134,9 @@ async function handle(request, env) {
     if (limit?.hits > RATE_LIMIT) return json({ error: "评论太频繁，请稍后再试" }, 429);
 
     const result = await env.DB.prepare(
-      "INSERT INTO comments (path, nickname, content, created_at) VALUES (?, ?, ?, ?)",
-    ).bind(path, nickname, content, now).run();
-    return json({ comment: { id: result.meta.last_row_id, path, nickname, content, created_at: now } }, 201);
+      "INSERT INTO comments (path, nickname, website, content, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).bind(path, nickname, website, content, now).run();
+    return json({ comment: { id: result.meta.last_row_id, path, nickname, website, content, created_at: now } }, 201);
   }
 
   if (url.pathname === "/api/admin/login" && request.method === "POST") {
@@ -143,7 +156,7 @@ async function handle(request, env) {
     if (url.pathname === "/api/admin/comments" && request.method === "GET") {
       const page = Math.max(0, Number.parseInt(url.searchParams.get("page") || "0", 10) || 0);
       const { results } = await env.DB.prepare(
-        "SELECT id, path, nickname, content, created_at FROM comments ORDER BY created_at DESC LIMIT 100 OFFSET ?",
+        "SELECT id, path, nickname, website, content, created_at FROM comments ORDER BY created_at DESC LIMIT 100 OFFSET ?",
       ).bind(page * 100).all();
       const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM comments").first();
       return json({ comments: results, total: count?.count || 0 });
