@@ -2,8 +2,7 @@
 
 一个轻量、简洁的 Hexo 评论系统：Cloudflare Workers 提供 API，D1 保存数据，Redefine（或其他 Hexo 主题）通过一段脚本接入。访客无需登录，可匿名或填写昵称、网址直接评论；评论立即公开；后台使用管理员密码登录，可查看并删除评论。
 
-## 功能与边界
-
+## 功能
 - 昵称与网址均可选；昵称留空显示“匿名”。网址只接受 HTTP/HTTPS 链接，并以安全的新标签页链接展示。
 - 无访客账号、无审核流程；公开评论会立即显示。
 - 管理页：`https://你的Worker域名/admin/`，可查看评论者网址及删除评论。
@@ -72,7 +71,7 @@
 
    Wrangler 会显示 Worker 地址，例如 `https://cloudflare-hexo-comments.<你的子域>.workers.dev`。如果你绑定了自定义域名，以下示例中的地址替换为该域名。部署后打开 `/admin/`，用 `ADMIN_PASSWORD` 登录。
 
-## 接入 Hexo / Redefine
+## 接入
 
 将下面代码加入 Redefine 的自定义注入脚本位置（或文章布局模板中需要显示评论的位置）。确认 API 地址替换为上一步部署后的 Worker 地址：
 
@@ -108,10 +107,4 @@ npm run dev
 - 管理页面登录只应通过 HTTPS。不要将管理员密码或密钥提交到 Git。
 - 若面临大量垃圾评论，可在 Cloudflare 增加 WAF/Turnstile，并考虑迁移到 Durable Objects 实现更严格的全局限流。
 
-## 技术栈
 
-Cloudflare Workers、D1、原生 JavaScript 与 Web Crypto；无运行时框架依赖。
-
-## License
-
-MIT
