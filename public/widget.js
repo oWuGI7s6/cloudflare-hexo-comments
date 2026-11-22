@@ -27,7 +27,7 @@
   const formatDate = (time) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(time));
   function render(comments) {
     count.textContent = `${comments.length} 条评论`;
-    if (!comments.length) { list.innerHTML = '<p class="cc-empty">还没有评论，来留下第一条吧。</p>'; return; }
+    if (!comments.length) { list.innerHTML = '<p class="cc-empty">还没有评论</p>'; return; }
     list.innerHTML = comments.map((comment) => {
       const website = safeUrl(comment.website || "");
       return `<article class="cc-card"><div class="cc-meta"><span class="cc-avatar" aria-hidden="true">${escape((comment.nickname || "匿").slice(0, 1))}</span><span class="cc-author"><span class="cc-name">${escape(comment.nickname)}</span><time class="cc-time" datetime="${new Date(comment.created_at).toISOString()}">${formatDate(comment.created_at)}</time></span>${website ? `<a class="cc-website" href="${escape(website)}" target="_blank" rel="noopener noreferrer nofollow">个人主页 ↗</a>` : ""}</div><div class="cc-content">${escape(comment.content)}</div></article>`;
@@ -50,9 +50,9 @@
       const response = await fetch(`${api}/api/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: pagePath, nickname: values.get("nickname"), website: values.get("website"), content: values.get("content"), website_honeypot: values.get("website_honeypot") }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "提交失败");
-      form.reset(); status.textContent = "发布成功，感谢参与！"; await load();
+      form.reset(); status.textContent = "发布成功！"; await load();
     } catch (error) { status.dataset.state = "error"; status.textContent = error.message; }
-    finally { button.disabled = false; buttonLabel.textContent = "发表评论"; }
+    finally { button.disabled = false; buttonLabel.textContent = "发布评论"; }
   });
   load();
 })();
