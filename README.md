@@ -3,10 +3,12 @@
 一个轻量、简洁的 Hexo 评论系统：Cloudflare Workers 提供 API，D1 保存数据，Redefine（或其他 Hexo 主题）通过一段脚本接入。访客无需登录，可匿名或填写昵称、网址直接评论；评论立即公开；后台使用管理员密码登录，可查看并删除评论。
 
 ## 功能
-- 昵称与网址均可选；昵称留空显示“匿名”。网址只接受 HTTP/HTTPS 链接，并以安全的新标签页链接展示。
+
+- 昵称与网址均可选；昵称留空显示“匿名”。填写网址后，昵称会链接到该主页。
+- 支持常用 Markdown（标题、粗斜体、删除线、行内代码、代码块、链接、引用和列表），编辑时可预览。Markdown 会作为安全的 HTML 呈现，原始 HTML 不执行。
+- 扁平化界面，无毛玻璃效果；头像颜色按昵称确定；可手动刷新评论。
 - 无访客账号、无审核流程；公开评论会立即显示。
 - 管理页：`https://你的Worker域名/admin/`，可查看评论者网址及删除评论。
-- 评论内容按纯文本安全展示，不支持 Markdown/HTML。
 - 基于 D1 的简单 IP 哈希限流：每分钟最多 8 次提交；不保存原始 IP。不是大型站点级防滥用方案。
 - 管理员会话为 HttpOnly、Secure、SameSite=Strict Cookie，有效期 7 天。部署前务必设置强管理员密码和随机签名密钥。
 
@@ -37,13 +39,13 @@
    npm run db:init:remote
    ```
 
-   如果是**已有部署和现存数据库**升级以支持网址字段，只执行一次：
+   如果是已有数据库，且之前已部署网址字段版本，确认已执行网址字段迁移：
 
    ```bash
    npx wrangler d1 execute hexo-comments --remote --file=./migrations/0002_add_website.sql
    ```
 
-   该迁移会为既有评论新增空网址字段，旧评论和数据会保留。不要对同一数据库重复执行；D1 会提示列已存在。
+   该迁移只执行一次；旧评论会保留。
 
 4. 设置后台凭据与 IP 哈希盐。使用强且唯一的值，按提示输入：
 
@@ -107,4 +109,10 @@ npm run dev
 - 管理页面登录只应通过 HTTPS。不要将管理员密码或密钥提交到 Git。
 - 若面临大量垃圾评论，可在 Cloudflare 增加 WAF/Turnstile，并考虑迁移到 Durable Objects 实现更严格的全局限流。
 
+## 技术栈
 
+Cloudflare Workers、D1、原生 JavaScript 与 Web Crypto；无运行时框架依赖。
+
+## License
+
+MIT
