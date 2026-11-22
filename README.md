@@ -1,6 +1,7 @@
 # Cloudflare Hexo Comments
 
-一个用于 Hexo 博客的轻量评论系统，后端运行于 Cloudflare Workers，评论保存在 Cloudflare D1 数据库，兼容 Hexo Redefine 等主题。
+
+一个用于 Hexo 博客的轻量评论系统，后端运行于 Cloudflare Workers，评论保存在 Cloudflare D1 数据库
 
 访客无需注册或登录，可选择填写昵称和网址，也可以保持匿名。评论提交后立即公开显示。管理后台支持密码登录、查看评论和删除评论。
 
@@ -207,14 +208,14 @@ ALLOWED_ORIGINS = "https://owugi7s6.netlify.app"
 如果博客同时使用两个域名，用逗号分隔：
 
 ```toml
-ALLOWED_ORIGINS = "https://example.com,https://www.example.com"
+ALLOWED_ORIGINS = "`https://example.` `com,https://www.example.com`"
 ```
 
 注意：
 
-- `https://example.com` 和 `http://example.com` 不是同一个来源
-- `https://example.com` 和 `https://www.example.com` 需要分别填写
-- 不要填写文章 URL，如 `https://example.com/posts/test/`
+- `https://example` `.com` 和 `http://exam`  `ple`  `.com` 不是同一个来源
+- `https://example` `.com` 和 `https://www`.`example`.`com` 需要分别填写
+- 不要填写文章 URL，如 `https://example`.`com/posts/test/`
 - 不要在值末尾保留文章路径或访问路径
 
 空的 `ALLOWED_ORIGINS` 会禁止组件进行跨域评论请求。修改后重新部署。
@@ -236,7 +237,7 @@ npx wrangler deploy
 部署成功后，终端会显示 Worker 地址，类似：
 
 ```text
-https://cloudflare-hexo-comments.<worker-subdomain>.workers.dev
+https://cloudflare-hexo-comments.<worker-subdomain`>.workers`.`dev`
 ```
 
 部署后测试：
@@ -261,7 +262,7 @@ https://comment.owugi7s6.dpdns.org/admin/
 
 ## 第七部分：绑定自定义域名
 
-使用 `workers.dev` 地址可以直接运行，但如果该域名无法访问，可以在 Cloudflare 中绑定自定义域名。
+使用 `workers`.`dev` 地址可以直接运行，但如果该域名无法访问，可以在 Cloudflare 中绑定自定义域名。
 
 ### 绑定方法
 
@@ -278,7 +279,7 @@ comment.owugi7s6.dpdns.org
 
 7. 等待 DNS 和证书生效。
 
-域名所对应的 zone 必须由 Cloudflare 管理。绑定后不要再手动将子域名 CNAME 到 `workers.dev`，Cloudflare 会自动建立所需路由。
+域名所对应的 zone 必须由 Cloudflare 管理。绑定后不要再手动将子域名 CNAME 到 `workers`.`dev`，Cloudflare 会自动建立所需路由。
 
 绑定成功后测试：
 
@@ -419,44 +420,6 @@ npm run deploy
 npm run deploy
 ```
 
-## 本地预览 Worker
-
-创建本地 D1：
-
-```bash
-npm run db:init:local
-```
-
-启动本地 Worker：
-
-```bash
-npm run dev
-```
-
-默认地址通常是：
-
-```text
-http://localhost:8787
-```
-
-本地管理页：
-
-```text
-http://localhost:8787/admin/
-```
-
-本地测试需要设置本地变量。可以创建项目根目录中的 `.dev.vars`：
-
-```text
-ADMIN_PASSWORD=本地测试密码
-ADMIN_SECRET=本地随机密钥
-RATE_LIMIT_SALT=本地随机盐值
-ALLOWED_ORIGINS=http://localhost:8787,http://localhost:4000
-```
-
-不要把 `.dev.vars` 提交到 Git；仓库已经在 `.gitignore` 中忽略它。
-
-本地 D1 是独立数据库，不会直接影响 Cloudflare 远端数据库。
 
 ## 管理评论
 
@@ -478,112 +441,12 @@ https://评论Worker域名/admin/
 
 管理后台会话有效期为 7 天，关闭浏览器不一定会立即清除会话；可使用退出登录主动清除。
 
-## 常见问题
 
-### 部署时报 database_id 无效
-
-检查：
-
-```bash
-npx wrangler d1 list
-```
-
-再确认 `wrangler.toml` 中：
-
-```toml
-database_id = "数据库UUID"
-```
-
-不是数据库名称。占位值 `REPLACE_WITH_YOUR_D1_DATABASE_ID` 不会通过部署校验。
-
-确认登录账号是否与数据库属于同一个 Cloudflare 账号：
-
-```bash
-npx wrangler whoami
-```
-
-### 评论区完全空白
-
-依次检查：
-
-1. 浏览器控制台是否出现 JavaScript SyntaxError。
-2. Network 中 `widget.js` 是否为 `200`。
-3. Hexo 构建后的 HTML 是否包含脚本和 `data-api`。
-4. 脚本是否位于 `<head>` 中。
-5. 浏览器是否缓存了旧 `widget.js`。
-
-脚本地址应能直接打开：
-
-```text
-https://comment.owugi7s6.dpdns.org/widget.js
-```
-
-如果直接打开正常，但 Hexo 页面空白，检查浏览器 Console 和 Network，而不是直接修改 D1。
-
-### 控制台提示 Failed to fetch
-
-检查：
-
-- `ALLOWED_ORIGINS` 是否与博客来源完全一致
-- 是否带了错误的协议或子域名
-- API 地址是否使用了可访问的自定义域名
-- DNS 和 Worker 自定义域名是否已生效
-- 浏览器是否拦截了第三方请求
-
-例如博客地址是：
-
-```text
-https://owugi7s6.netlify.app
-```
-
-则应配置：
-
-```toml
-ALLOWED_ORIGINS = "https://owugi7s6.netlify.app"
-```
-
-### 控制台提示 CORS
-
-检查 `ALLOWED_ORIGINS`，不要填写 API 域名，也不要填写文章路径。
-
-修改后部署：
-
-```bash
-npm run deploy
-```
-
-### 评论提交频繁后被拒绝
-
-默认限流为每个 IP 哈希每分钟最多 8 次。等待一分钟后再提交。生产环境还可以在 Cloudflare 前配置 WAF、Turnstile 或更严格的频率限制。
-
-### 更换文章永久链接后旧评论不见
-
-评论使用文章 `window.location.pathname` 保存。修改永久链接后，新路径与旧路径不相同，需要手动迁移数据库中的 `path` 字段；迁移前先备份数据库。
-
-备份数据库：
-
-```bash
-npx wrangler d1 export hexo-comments --remote --output=comments-backup.sql
-```
-
-## 数据安全与维护
+## 数据安全
 
 - 评论仅保存昵称、网址、正文、页面路径和时间
-- 不保存原始访客 IP，只保存带随机盐的哈希
-- 评论正文支持安全格式，不应直接插入任意用户 HTML
+- 评论正文支持安全格式，不允许直接插入HTML
 - 管理密码和密钥只保存在 Cloudflare Secrets 中
 - 不要公开分享管理员密码、密钥或数据库备份
 - 建议定期导出 D1 数据库作为备份
 
-## 技术栈
-
-- Cloudflare Workers
-- Cloudflare D1
-- Wrangler
-- 原生 JavaScript
-- Web Crypto API
-- Hexo / Redefine
-
-## License
-
-MIT
