@@ -223,10 +223,10 @@
   const MARKUP = `
     <div class="cc-panel">
       <header class="cc-heading">
-        <h2 class="cc-title">评论</h2>
+        <h3 class="cc-title">评论</h3>
         <div class="cc-tools">
           <span class="cc-count" aria-live="polite"></span>
-          <button class="cc-tool cc-refresh" type="button" aria-label="刷新评论" title="刷新评论">
+          <button class="cc-tool cc-refresh" type="button" aria-label="刷新" title="刷新">
             <svg class="cc-refresh-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M13.2 6A5.5 5.5 0 0 0 3 4.1L1.8 5.4M1.8 5.4V2.8m0 2.6h2.7M2.8 10A5.5 5.5 0 0 0 13 11.9l1.2-1.3m0 0v2.6m0-2.6h-2.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -236,19 +236,17 @@
       </header>
       <div class="cc-list" aria-live="polite"></div>
       <div class="cc-form-wrap">
-        <h3 class="cc-form-title">留下你的想法</h3>
         <form class="cc-form cc-main-form">
           <div class="cc-fields">
-            <input name="nickname" maxlength="40" placeholder="昵称（选填，默认匿名）" autocomplete="nickname" aria-label="昵称（选填）">
-            <input name="website" type="url" maxlength="200" placeholder="网址（选填，如 https://example.com）" autocomplete="url" aria-label="网址（选填）">
+            <input name="nickname" maxlength="40" placeholder="昵称（选填）" autocomplete="nickname" aria-label="昵称（选填）">
+            <input name="website" type="url" maxlength="200" placeholder="网址（选填）" autocomplete="url" aria-label="网址（选填）">
           </div>
           <label class="cc-hp" aria-hidden="true">Website<input name="website_honeypot" tabindex="-1" autocomplete="off"></label>
-          <textarea class="cc-input" name="content" maxlength="3000" required placeholder="友善交流，支持 Markdown…" aria-label="评论内容"></textarea>
+          <textarea class="cc-input" name="content" maxlength="3000" required placeholder="支持 Markdown…" aria-label="评论内容"></textarea>
           <div class="cc-preview" hidden aria-label="Markdown 预览"></div>
-          <p class="cc-hint">支持 Markdown：<strong>粗体</strong>、<em>斜体</em>、<code>代码</code>、[链接](https://example.com)、列表和代码块。</p>
           <div class="cc-actions">
-            <button class="cc-tool cc-preview-toggle" type="button">预览</button>
             <button class="cc-submit" type="submit"><span class="cc-button-label">评论</span></button>
+            <button class="cc-tool cc-preview-toggle" type="button">预览</button>
             <span class="cc-status" role="status" aria-live="polite"></span>
           </div>
         </form>
@@ -463,13 +461,13 @@
     form.innerHTML = `
       <p class="cc-reply-label">回复 ${escapeHtml(nickname)}</p>
       <div class="cc-fields">
-        <input name="nickname" maxlength="40" placeholder="昵称（选填，默认匿名）" autocomplete="nickname">
+        <input name="nickname" maxlength="40" placeholder="昵称（选填）" autocomplete="nickname">
         <input name="website" type="url" maxlength="200" placeholder="网址（选填）" autocomplete="url">
       </div>
       <label class="cc-hp" aria-hidden="true">Website<input name="website_honeypot" tabindex="-1" autocomplete="off"></label>
-      <textarea name="content" maxlength="3000" required placeholder="写下你的回复…"></textarea>
+      <textarea name="content" maxlength="3000" required placeholder="回复…"></textarea>
       <div class="cc-actions">
-        <button class="cc-submit" type="submit">发送回复</button>
+        <button class="cc-submit" type="submit">评论</button>
         <button class="cc-tool cc-cancel-reply" type="button">取消</button>
         <span class="cc-status" role="status" aria-live="polite"></span>
       </div>
