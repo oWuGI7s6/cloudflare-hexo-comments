@@ -1,147 +1,71 @@
 # Cloudflare Hexo Comments
 
+一个用于 Hexo 博客的轻量评论系统，后端运行于 Cloudflare Workers，评论保存在 Cloudflare D1 数据库，兼容 Hexo Redefine 等主题。
 
-一个用于 Hexo 博客的轻量评论系统，后端运行于 Cloudflare Workers，评论保存在 Cloudflare D1 数据库
-
-访客无需注册或登录，可选择填写昵称和网址，也可以保持匿名。评论提交后立即公开显示。管理后台支持密码登录、查看评论和删除评论。
+访客无需注册或登录，可填写昵称和网址，也可以匿名评论。评论提交后立即公开；访客可在顶层评论下回复。管理后台可使用密码登录、查看并删除评论。
 
 ## 功能
 
-- 匿名评论或填写昵称、网址
-- 昵称留空时显示为“匿名”
-- 评论按 Hexo 页面路径独立保存
-- 支持安全的常用 Markdown、编辑预览和手动刷新
-- 评论内容按纯文本或安全 HTML 展示，不执行原始 HTML
-- 管理员密码登录、查看评论、删除评论
-- IP 哈希限流：默认每分钟最多提交 8 次
-- 支持 Worker 自定义域名和 Hexo 跨域访问
+- 匿名评论或填写昵称、网址；昵称留空显示“匿名”。
+- 按 Hexo 页面路径隔离评论。
+- 单层回复：访客可以回复顶层评论，回复本身不继续嵌套，避免线程过深。
+- 支持常用安全 Markdown、编辑预览、手动刷新。
+- 简洁拟物化控件与缩进回复区；评论正文不执行原始 HTML。
+- 管理员密码登录、查看、删除评论；删除顶层评论时会一并删除其回复。
+- IP 哈希限流：默认每分钟最多 8 次发布（评论和回复共用额度）。
+- 支持 Worker 自定义域名和 Hexo 跨域访问。
 
-## 目录结构
+## 部署前准备
 
-```text
-cloudflare-hexo-comments/
-├── public/
-│   ├── admin/index.html   管理后台
-│   └── widget.js          Hexo 评论组件
-├── src/index.js           Workers API
-├── migrations/            数据库迁移文件
-├── schema.sql             D1 建表文件
-├── wrangler.toml          Cloudflare 部署配置
-└── package.json
-```
-
-## 前置要求
-
-需要准备：
-
-- 一个 Cloudflare 账号
-- 一个已启用域名解析的 Hexo 博客，或本地 Hexo 博客
-- Node.js 和 npm
-- Git 或可直接下载 ZIP 的 GitHub 仓库
-
-检查 Node.js 和 npm：
+需要 Cloudflare 账号、Node.js/npm、Git（或下载 ZIP）及一个 Hexo 博客。
 
 ```bash
 node --version
 npm --version
 ```
 
-如果没有 Git，可以在 GitHub 仓库页面选择 **Code → Download ZIP**，解压后在项目目录打开终端。
+## 首次部署
 
-## 第一部分：下载项目并登录 Cloudflare
-
-克隆仓库：
+### 1. 下载项目并登录 Cloudflare
 
 ```bash
 git clone https://github.com/oWuGI7s6/cloudflare-hexo-comments.git
 cd cloudflare-hexo-comments
 npm install
-```
-
-登录 Cloudflare：
-
-```bash
 npx wrangler login
-```
-
-浏览器会打开 Cloudflare 授权页面。登录并授权后，回到终端确认登录状态：
-
-```bash
 npx wrangler whoami
 ```
 
-显示当前账号或邮箱即表示登录成功。若本地是另一个账号，可先执行 `npx wrangler logout`，再重新登录。
+`wrangler login` 会打开浏览器完成授权。`whoami` 用于确认当前登录的 Cloudflare 账号。
 
-## 第二部分：创建 D1 数据库
-
-创建数据库：
+### 2. 创建 D1 数据库并配置 ID
 
 ```bash
 npx wrangler d1 create hexo-comments
 ```
 
-命令输出中会包含：
-
-```text
-database_name = "hexo-comments"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
-
-复制完整的 `database_id`。
-
-打开项目根目录中的 `wrangler.toml`，找到：
+复制输出中的 `database_id`，填写进 `wrangler.toml`：
 
 ```toml
 [[d1_databases]]
 binding = "DB"
 database_name = "hexo-comments"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "这里填创建结果中的UUID"
 ```
 
-将占位值替换为实际 ID：
+不要更改 `binding = "DB"`。如果数据库已存在，不要再次创建；可用 `npx wrangler d1 list` 查询 ID，并确认 Wrangler 登录的是拥有该数据库的账号。
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "hexo-comments"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
+### 3. 初始化 D1 表
 
-不要修改 `binding = "DB"`，否则 `src/index.js` 将无法找到数据库。
-
-可以随时检查数据库是否存在：
-
-```bash
-npx wrangler d1 list
-```
-
-## 第三部分：初始化数据库表
-
-远端数据库创建：
+首次部署：
 
 ```bash
 npm run db:init:remote
 ```
 
-等价于：
+这会执行 `schema.sql`，其中已包含网址和回复所需的字段。已有评论数据时，不要重新执行整个 schema 来代替迁移。
 
-```bash
-npx wrangler d1 execute hexo-comments --remote --file=./schema.sql
-```
-
-如果是第一次部署，执行一次即可。成功后会显示 SQL 执行结果。
-
-如果数据库曾经使用过旧版本，并且已有 `comments` 表，但未包含 `website` 字段，只执行一次迁移：
-
-```bash
-npx wrangler d1 execute hexo-comments --remote --file=./migrations/0002_add_website.sql
-```
-
-迁移只用于新增网址字段，不会删除旧评论。不要重复执行迁移；如果 D1 已���提示 `duplicate column name: website`，说明迁移已经完成，不是部署错误。
-
-## 第四部分：设置管理密码和安全密钥
-
-分别执行：
+### 4. 设置后台凭据与随机密钥
 
 ```bash
 npx wrangler secret put ADMIN_PASSWORD
@@ -149,229 +73,98 @@ npx wrangler secret put ADMIN_SECRET
 npx wrangler secret put RATE_LIMIT_SALT
 ```
 
-每条命令执行后会提示输入值。
-
-### ADMIN_PASSWORD
-
-管理员登录后台使用的密码。
-
-建议：
-
-- 至少 12 位
-- 不使用博客管理面板的相同密码
-- 不要提交到 Git 或写进 `wrangler.toml`
-
-### ADMIN_SECRET
-
-用于签名管理员登录会话的随机密钥。不要使用与密码相同的值。
-
-### RATE_LIMIT_SALT
-
-用于将访客 IP 哈希化、实现评论限流的随机盐值。
-
-生成随机密钥：
+每条命令提示输入时填写对应值。可用以下命令生成随机值（分别运行两次，为两个 Secret 使用不同值）：
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-分别运行两次，得到两个不同的值，分别用于 `ADMIN_SECRET` 和 `RATE_LIMIT_SALT`。不要把随机值发给别人或提交到仓库。
+- `ADMIN_PASSWORD`：管理后台登录密码，使用强密码。
+- `ADMIN_SECRET`：签名后台会话的随机密钥。
+- `RATE_LIMIT_SALT`：IP 哈希限流用随机盐。
 
-查看已设置的密钥名称：
+这些 Secret 存在 Cloudflare，不写进 `wrangler.toml`、`.dev.vars` 公共仓库或 Hexo 页面。可用 `npx wrangler secret list` 查看已设置的名称（不会显示值）。
 
-```bash
-npx wrangler secret list
-```
+### 5. 配置 Hexo 博客来源
 
-密钥值不会显示在该列表中。忘记管理员密码时，重新运行：
-
-```bash
-npx wrangler secret put ADMIN_PASSWORD
-```
-
-## 第五部分：配置允许访问的博客域名
-
-打开 `wrangler.toml`：
+在 `wrangler.toml` 的 `[vars]` 部分设置 `ALLOWED_ORIGINS`。填写博客浏览器地址栏的协议和域名，不含路径：
 
 ```toml
-ALLOWED_ORIGINS = ""
+[vars]
+ALLOWED_ORIGINS = "https://your-blog.example"
 ```
 
-填入博客浏览器地址栏中的完整来源，即协议加域名，不包含文章路径。
-
-例如：
+多个博客域名逗号分隔，必须逐个精确匹配协议、主机名及 www 形式，例如：
 
 ```toml
-ALLOWED_ORIGINS = "https://owugi7s6.netlify.app"
+ALLOWED_ORIGINS = "https://your-blog.example,https://www.your-blog.example"
 ```
 
-如果博客同时使用两个域名，用逗号分隔：
-
-```toml
-ALLOWED_ORIGINS = "`https://example.` `com,https://www.example.com`"
-```
-
-注意：
-
-- `https://example` `.com` 和 `http://exam`  `ple`  `.com` 不是同一个来源
-- `https://example` `.com` 和 `https://www`.`example`.`com` 需要分别填写
-- 不要填写文章 URL，如 `https://example`.`com/posts/test/`
-- 不要在值末尾保留文章路径或访问路径
-
-空的 `ALLOWED_ORIGINS` 会禁止组件进行跨域评论请求。修改后重新部署。
-
-## 第六部分：部署到 Cloudflare Workers
-
-运行：
+### 6. 部署 Worker 和静态资源
 
 ```bash
 npm run deploy
 ```
 
-也可以直接运行：
+成功后 Wrangler 会显示 Worker URL。访问以下路径确认：
+
+```text
+https://你的Worker域名/widget.js
+https://你的Worker域名/admin/
+```
+
+`widget.js` 应返回 JavaScript，`admin/` 应显示后台登录页。Worker 根路径不是博客首页。
+
+## 已有部署升级：添加回复字段
+
+如果现有 D1 数据库已经有 `comments` 和 `website` 字段，**先备份，再只运行一次新迁移**：
 
 ```bash
-npx wrangler deploy
+npx wrangler d1 export hexo-comments --remote --output=comments-before-replies.sql
+npx wrangler d1 execute hexo-comments --remote --file=./migrations/0003_add_replies.sql
 ```
 
-部署成功后，终端会显示 Worker 地址，类似：
+然后拉取最新代码并发布 Worker：
 
-```text
-https://cloudflare-hexo-comments.<worker-subdomain`>.workers`.`dev`
+```bash
+git pull
+npm install
+npm run deploy
 ```
 
-部署后测试：
+`0003_add_replies.sql` 只新增 `parent_id` 列和索引，不删除旧评论。不要重复执行；若提示 `duplicate column name: parent_id`，迁移已应用。若数据库尚未包含 `website` 字段，先执行相应旧迁移 `0002_add_website.sql`，再执行 `0003_add_replies.sql`。
 
-```text
-Worker地址/widget.js
-Worker地址/admin/
-```
+## 绑定自定义域名（可选）
 
-例如：
+在 Cloudflare 控制台进入 **Workers & Pages → 你的 Worker → Settings → Domains & Routes → Add → Custom Domain**，添加由 Cloudflare DNS 托管的子域名，例如 `comments.example.com`。等待 DNS 与 HTTPS 证书生效后，先测试 `/widget.js` 和 `/admin/`。不要手动将同一主机名 CNAME 到 `workers.dev`。
 
-```text
-https://comment.owugi7s6.dpdns.org/widget.js
-https://comment.owugi7s6.dpdns.org/admin/
-```
+## 接入 Hexo / Redefine
 
-- `/widget.js` 应返回 JavaScript
-- `/admin/` 应显示评论管理登录页面
-- `/admin/` 使用刚设置的 `ADMIN_PASSWORD` 登录
-
-根路径没有评论页面，直接访问 `https://Worker域名/` 通常是空白或固定资源结果；评论组件应部署到 Hexo 页面。
-
-## 第七部分：绑定自定义域名
-
-使用 `workers`.`dev` 地址可以直接运行，但如果该域名无法访问，可以在 Cloudflare 中绑定自定义域名。
-
-### 绑定方法
-
-1. 打开 Cloudflare 控制台。
-2. 进入 **Workers & Pages**。
-3. 选择评论系统 Worker。
-4. 打开 **Settings / 设置 → Domains & Routes / 域和路由**。
-5. 点击 **Add / 添加 → Custom Domain / 自定义域名**。
-6. 输入子域名，例如：
-
-```text
-comment.owugi7s6.dpdns.org
-```
-
-7. 等待 DNS 和证书生效。
-
-域名所对应的 zone 必须由 Cloudflare 管理。绑定后不要再手动将子域名 CNAME 到 `workers`.`dev`，Cloudflare 会自动建立所需路由。
-
-绑定成功后测试：
-
-```text
-https://comment.owugi7s6.dpdns.org/widget.js
-https://comment.owugi7s6.dpdns.org/admin/
-```
-
-## 第八部分：接入 Hexo / Redefine
-
-在目标文章或页面的 Markdown 正文中加入：
+将下面代码放在希望显示评论的页面正文末尾，或者文章布局的正文后方。替换为实际 Worker/自定义域名：
 
 ```html
 <div id="comments"></div>
 <script
-  src="https://comment.owugi7s6.dpdns.org/widget.js"
-  data-api="https://comment.owugi7s6.dpdns.org"
+  src="https://comments.example.com/widget.js"
+  data-api="https://comments.example.com"
   defer
 ></script>
 ```
 
-将地址替换成实际 Worker 或自定义域名。不要保留 `<你的子域>` 或占位符。
-
-组件脚本只需放在需要评论的页面末尾即可。它会读取：
-
-```javascript
-window.location.pathname
-```
-
-作为文章唯一路径，因此评论会按页面分开保存。
-
-### Redefine 页面模板方法
-
-如果希望评论显示在每篇文章下方，可以把脚本放到适合的 Redefine 文章布局模板中，而不是只放在单独的评论页面。
-
-常见模板位置包括：
-
-```text
-themes/redefine/layout/_partial/
-themes/redefine/layout/post.ejs
-```
-
-具体文件以主题版本为准。
-
-查找包含文章正文的模板位置：
-
-```bash
-rg "article-content|post-content|markdown-body" themes/redefine/layout
-```
-
-找到文章正文结束位置后，在评论区模板中加入脚本。不要只将脚本放入主题的 `<head>` 注入区，否则组件可能被插入 `<head>` 而不显示在正文中。
-
-### Redefine 的 Swup/Pjax
-
-Redefine 使用 Swup 单页切换时，可保留：
+若 Redefine 启用了 Swup，可给脚本增加 `data-swup-reload-script`：
 
 ```html
-data-swup-reload-script
-```
-
-例如：
-
-```html
-<div id="comments"></div>
 <script
-  src="https://comment.owugi7s6.dpdns.org/widget.js"
-  data-api="https://comment.owugi7s6.dpdns.org"
+  src="https://comments.example.com/widget.js"
+  data-api="https://comments.example.com"
   data-swup-reload-script
   defer
 ></script>
 ```
 
-如果主题没有启用 Swup，也可以不写该属性。
+组件会以 `window.location.pathname` 作为页面标识。若更改 Hexo permalink，原路径下的评论不会自动搬到新路径。
 
-注意脚本标签不要同时包含无效属性串写法，例如：
-
-```html
-data-swup-reload-script type="text/javascript"
-```
-
-可以正确保留属性分离：
-
-```html
-data-swup-reload-script
-  type="text/javascript"
-```
-
-但现代浏览器下通常不需要额外填写 `type="text/javascript"`。
-
-### 构建 Hexo
-
-修改 Hexo 页面或模板后执行：
+页面/模板修改后本地构建预览：
 
 ```bash
 npx hexo clean
@@ -379,74 +172,55 @@ npx hexo generate
 npx hexo server
 ```
 
-本地预览地址通常是：
+通常打开 `http://localhost:4000`。检查生成后的 `public/.../index.html` 确实包含 widget 脚本标签，并确认 Network 中 widget 和 API 请求成功。
 
-```text
-http://localhost:4000
-```
+## 本地开发
 
-生成到 `public/` 后，再部署 Hexo 的 Netlify、GitHub Pages、Cloudflare Pages 或服务器。
-
-检查构建后的 HTML 是否包含：
-
-```html
-<script
-  src="https://comment.owugi7s6.dpdns.org/widget.js"
-  data-api="https://comment.owugi7s6.dpdns.org"
->
-```
-
-如果构建后的 HTML 中没有脚本，说明注入位置或主题模板配置未生效。
-
-## 更新 Worker
-
-仓库更新后：
+本地 D1 与远端数据库独立。建立本地表并创建项目根目录 `.dev.vars`：
 
 ```bash
-cd cloudflare-hexo-comments
-git pull
-npm install
-npm run deploy
+npm run db:init:local
 ```
 
-更新前端组件后，浏览器可能缓存旧脚本；强制刷新：
-
-- Windows：`Ctrl+F5`
-- macOS：`Command+Shift+R`
-
-如果只修改了 `wrangler.toml` 中的环境变量，也需要重新部署：
-
-```bash
-npm run deploy
-```
-
-
-## 管理评论
-
-打开：
+`.dev.vars` 示例（不要提交）：
 
 ```text
-https://评论Worker域名/admin/
+ADMIN_PASSWORD=local-test-password
+ADMIN_SECRET=local-random-secret
+RATE_LIMIT_SALT=local-random-salt
+ALLOWED_ORIGINS=http://localhost:4000
 ```
 
-使用部署时设置的 `ADMIN_PASSWORD` 登录。
+启动 Worker：
 
-管理后台可以：
+```bash
+npm run dev
+```
 
-- 查看评论者昵称和网址
-- 查看评论所属页面
-- 查看评论时间
-- 逐条删除评论
-- 分页查看评论
+一般访问 `http://localhost:8787/admin/`。在 Hexo 本地页面使用的 API 应指向本地 Worker，并确保允许来源包含 Hexo 实际地址。
 
-管理后台会话有效期为 7 天，关闭浏览器不一定会立即清除会话；可使用退出登录主动清除。
+## 管理与备份
 
+- 管理后台：`https://你的Worker域名/admin/`。
+- 后台可查看、删除评论；删除顶层评论时，其回复也会被删除。
+- 每分钟 8 次限额由同一个 IP 哈希计数器供评论和回复共用。
+- 定期备份：`npx wrangler d1 export hexo-comments --remote --output=comments-backup.sql`。
+- 管理会话使用 HttpOnly、Secure、SameSite=Strict Cookie，有效期 7 天。
 
-## 数据安全
+## 常见问题
 
-- 评论仅保存昵称、网址、正文、页面路径和时间
-- 评论正文支持安全格式，不允许直接插入HTML
-- 管理密码和密钥只保存在 Cloudflare Secrets 中
-- 不要公开分享管理员密码、密钥或数据库备份
-- 建议定期导出 D1 数据库作为备份
+### 部署时报 D1 database_id 无效
 
+确认 `wrangler.toml` 有真实数据库 UUID，而不是占位符；运行 `npx wrangler d1 list` 核对数据库存在，并用 `npx wrangler whoami` 核对账号。
+
+### 评论区空白
+
+确认 `/widget.js` 返回 200；查看浏览器 Console 的 JavaScript 错误；检查 Hexo 构建后的 HTML 包含脚本，并且脚本位于 `<body>` 内容位置而非 `<head>`。更新后强制刷新浏览器缓存（Windows `Ctrl+F5`，macOS `Command+Shift+R`）。
+
+### `Failed to fetch` 或 CORS 错误
+
+确认 `ALLOWED_ORIGINS` 是博客的 Origin（例如 `https://blog.example.com`），不是 API 域名或文章路径；改配置后重新执行 `npm run deploy`。
+
+## 技术栈与许可
+
+Cloudflare Workers、D1、Wrangler、原生 JavaScript 与 Web Crypto API。MIT License。

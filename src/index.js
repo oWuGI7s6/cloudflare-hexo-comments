@@ -105,7 +105,7 @@ async function handle(request, env) {
     const path = cleanText(url.searchParams.get("path"), 500);
     if (!path) return json({ error: "缺少页面路径" }, 400);
     const { results } = await env.DB.prepare(
-      "SELECT id, path, nickname, website, content, created_at FROM comments WHERE path = ? ORDER BY created_at ASC LIMIT 500",
+      "SELECT id, path, nickname, website, content, created_at, parent_id FROM comments WHERE path = ? ORDER BY created_at ASC LIMIT 500",
     ).bind(path).all();
     return json({ comments: results });
   }
@@ -118,9 +118,16 @@ async function handle(request, env) {
     const nickname = cleanText(body.nickname, 40) || "匿名";
     const content = cleanText(body.content, 3000);
     const website = cleanWebsite(body.website);
+    const parentId = body.parent_id == null || body.parent_id === "" ? null : Number(body.parent_id);
     if (!path || !content) return json({ error: "页面路径和评论内容不能为空" }, 400);
     if (content.length < 2) return json({ error: "评论至少需要 2 个字符" }, 400);
     if (website === null) return json({ error: "网址格式无效，请填写有效的网址" }, 400);
+    if (parentId !== null && (!Number.isSafeInteger(parentId) || parentId < 1)) return json({ error: "回复目标无效" }, 400);
+    if (parentId !== null) {
+      const parent = await env.DB.prepare("SELECT id, parent_id FROM comments WHERE id = ? AND path = ?")
+        .bind(parentId, path).first();
+      if (!parent || parent.parent_id !== null) return json({ error: "找不到可回复的评论" }, 404);
+    }
     if (!env.RATE_LIMIT_SALT) return json({ error: "服务尚未完成配置" }, 503);
 
     const ipHash = await hashIp(request, env);
@@ -134,9 +141,9 @@ async function handle(request, env) {
     if (limit?.hits > RATE_LIMIT) return json({ error: "评论太频繁，请稍后再试" }, 429);
 
     const result = await env.DB.prepare(
-      "INSERT INTO comments (path, nickname, website, content, created_at) VALUES (?, ?, ?, ?, ?)",
-    ).bind(path, nickname, website, content, now).run();
-    return json({ comment: { id: result.meta.last_row_id, path, nickname, website, content, created_at: now } }, 201);
+      "INSERT INTO comments (path, nickname, website, content, created_at, parent_id) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind(path, nickname, website, content, now, parentId).run();
+    return json({ comment: { id: result.meta.last_row_id, path, nickname, website, content, created_at: now, parent_id: parentId } }, 201);
   }
 
   if (url.pathname === "/api/admin/login" && request.method === "POST") {
@@ -156,14 +163,16 @@ async function handle(request, env) {
     if (url.pathname === "/api/admin/comments" && request.method === "GET") {
       const page = Math.max(0, Number.parseInt(url.searchParams.get("page") || "0", 10) || 0);
       const { results } = await env.DB.prepare(
-        "SELECT id, path, nickname, website, content, created_at FROM comments ORDER BY created_at DESC LIMIT 100 OFFSET ?",
+        "SELECT id, path, nickname, website, content, created_at, parent_id FROM comments ORDER BY created_at DESC LIMIT 100 OFFSET ?",
       ).bind(page * 100).all();
       const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM comments").first();
       return json({ comments: results, total: count?.count || 0 });
     }
     const match = url.pathname.match(/^\/api\/admin\/comments\/(\d+)$/);
     if (match && request.method === "DELETE") {
-      await env.DB.prepare("DELETE FROM comments WHERE id = ?").bind(Number(match[1])).run();
+      const id = Number(match[1]);
+      await env.DB.prepare("DELETE FROM comments WHERE parent_id = ?").bind(id).run();
+      await env.DB.prepare("DELETE FROM comments WHERE id = ?").bind(id).run();
       return json({ ok: true });
     }
     return json({ error: "找不到接口" }, 404);
